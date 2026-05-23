@@ -1,0 +1,17 @@
+{
+  "analyzers": {
+    "core": {
+      "enabled": true,
+      "verbose": false,
+      "rules": {
+        "no-hardcoded-env-urls": { "level": "off" },
+        "secure-parameter-default": { "level": "error" },
+        "use-recent-api-versions": { "level": "warning" },
+        "prefer-unquoted-property-names": { "level": "warning" }
+      }
+    }
+  },
+  "experimentalFeaturesEnabled": {
+    "userDefinedTypes": true
+  }
+}

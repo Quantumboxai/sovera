@@ -1,0 +1,16 @@
+**/node_modules
+**/.next
+**/dist
+**/build
+.git
+.github
+.vscode
+.azure
+**/.env*.local
+**/.DS_Store
+**/*.log
+**/coverage
+infra/*.json
+docs
+*.md
+fix-tokens.ps1

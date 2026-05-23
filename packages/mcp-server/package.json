@@ -1,0 +1,30 @@
+{
+  "name": "@sovera/mcp",
+  "version": "0.1.0",
+  "description": "Model Context Protocol server for Sovera — gives Claude, Cursor, VS Code, Lovable, Windsurf and any MCP-capable agent direct access to your Sovera project (SQL, tables, vector search, realtime, blob, logs, RBAC).",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "sovera-mcp": "dist/index.js"
+  },
+  "main": "dist/index.js",
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc -w",
+    "start": "node dist/index.js"
+  },
+  "keywords": ["mcp", "model-context-protocol", "sovera", "supabase-alternative", "claude", "cursor", "ai-agent", "postgres", "azure"],
+  "homepage": "https://github.com/DavidMalickDieng-wq/sovera/tree/main/packages/mcp-server#readme",
+  "repository": { "type": "git", "url": "git+https://github.com/DavidMalickDieng-wq/sovera.git", "directory": "packages/mcp-server" },
+  "bugs": { "url": "https://github.com/DavidMalickDieng-wq/sovera/issues" },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  },
+  "engines": { "node": ">=18.17" }
+}

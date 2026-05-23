@@ -1,0 +1,319 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.43.8.12551",
+      "templateHash": "3994721823147048315"
+    }
+  },
+  "parameters": {
+    "tenantSlug": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 20,
+      "metadata": {
+        "description": "Lowercase tenant slug, 3-20 chars, [a-z0-9-]. Used in resource names."
+      }
+    },
+    "tenantDisplayName": {
+      "type": "string",
+      "metadata": {
+        "description": "Human-readable tenant display name (used in APIM product)."
+      }
+    },
+    "tier": {
+      "type": "string",
+      "defaultValue": "pro",
+      "allowedValues": [
+        "starter",
+        "pro",
+        "enterprise"
+      ],
+      "metadata": {
+        "description": "Tenant tier — controls quotas and rate limits."
+      }
+    },
+    "tenantId": {
+      "type": "string",
+      "defaultValue": "[guid(resourceGroup().id, parameters('tenantSlug'))]",
+      "metadata": {
+        "description": "Optional UUID for the tenant (sets the @claims.tid expected by RLS). Defaults to a deterministic GUID from the slug."
+      }
+    },
+    "postgresServerName": {
+      "type": "string"
+    },
+    "storageAccountName": {
+      "type": "string"
+    },
+    "webPubSubName": {
+      "type": "string"
+    },
+    "apimName": {
+      "type": "string",
+      "defaultValue": ""
+    },
+    "keyVaultName": {
+      "type": "string"
+    },
+    "tenantAdminGroupObjectId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Object ID of the Entra group that owns this tenant (gets DB Entra-admin + KV access)."
+      }
+    }
+  },
+  "variables": {
+    "dbName": "[format('tnt_{0}', replace(parameters('tenantSlug'), '-', '_'))]",
+    "containerName": "[format('tnt-{0}', parameters('tenantSlug'))]",
+    "hubName": "[format('tnt_{0}', replace(parameters('tenantSlug'), '-', '_'))]",
+    "productName": "[format('tenant-{0}', parameters('tenantSlug'))]",
+    "subscriptionName": "[format('sub-{0}', parameters('tenantSlug'))]",
+    "tierLimits": {
+      "starter": {
+        "rateLimitCalls": 60,
+        "rateLimitPeriod": 60,
+        "quotaCalls": 100000,
+        "quotaPeriod": 86400,
+        "storageQuotaGB": 5,
+        "maxClients": 50
+      },
+      "pro": {
+        "rateLimitCalls": 600,
+        "rateLimitPeriod": 60,
+        "quotaCalls": 5000000,
+        "quotaPeriod": 86400,
+        "storageQuotaGB": 250,
+        "maxClients": 1000
+      },
+      "enterprise": {
+        "rateLimitCalls": 6000,
+        "rateLimitPeriod": 60,
+        "quotaCalls": 100000000,
+        "quotaPeriod": 86400,
+        "storageQuotaGB": 2000,
+        "maxClients": 10000
+      }
+    },
+    "t": "[variables('tierLimits')[parameters('tier')]]",
+    "tenantTags": {
+      "workload": "sovera",
+      "tenantSlug": "[parameters('tenantSlug')]",
+      "tenantTier": "[parameters('tier')]",
+      "dataResidency": "FR"
+    },
+    "apiNames": [
+      "data",
+      "functions",
+      "realtime"
+    ],
+    "tenantProductPolicyXml": "<policies>\r\n  <inbound>\r\n    <base />\r\n    <set-header name=\"X-Sovera-Tenant-Slug\" exists-action=\"override\">\r\n      <value>__SLUG__</value>\r\n    </set-header>\r\n    <set-header name=\"X-Sovera-Tenant-Id\" exists-action=\"override\">\r\n      <value>__TID__</value>\r\n    </set-header>\r\n    <set-header name=\"X-Sovera-Tenant-Tier\" exists-action=\"override\">\r\n      <value>__TIER__</value>\r\n    </set-header>\r\n    <rate-limit-by-key calls=\"__RL_CALLS__\"\r\n                      renewal-period=\"__RL_PERIOD__\"\r\n                      counter-key=\"@(context.Subscription?.Id ?? \"anon\")\" />\r\n    <quota-by-key calls=\"__QT_CALLS__\"\r\n                  renewal-period=\"__QT_PERIOD__\"\r\n                  counter-key=\"@(context.Subscription?.Id ?? \"anon\")\" />\r\n  </inbound>\r\n  <backend><base /></backend>\r\n  <outbound><base /></outbound>\r\n  <on-error><base /></on-error>\r\n</policies>\r\n"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.DBforPostgreSQL/flexibleServers/databases",
+      "apiVersion": "2024-08-01",
+      "name": "[format('{0}/{1}', parameters('postgresServerName'), variables('dbName'))]",
+      "properties": {
+        "charset": "UTF8",
+        "collation": "en_US.utf8"
+      }
+    },
+    {
+      "condition": "[not(empty(parameters('tenantAdminGroupObjectId')))]",
+      "type": "Microsoft.DBforPostgreSQL/flexibleServers/administrators",
+      "apiVersion": "2024-08-01",
+      "name": "[format('{0}/{1}', parameters('postgresServerName'), parameters('tenantAdminGroupObjectId'))]",
+      "properties": {
+        "principalType": "Group",
+        "principalName": "[format('sovera-tenant-{0}-admins', parameters('tenantSlug'))]",
+        "tenantId": "[subscription().tenantId]"
+      }
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+      "apiVersion": "2024-01-01",
+      "name": "[format('{0}/{1}/{2}', parameters('storageAccountName'), 'default', variables('containerName'))]",
+      "properties": {
+        "publicAccess": "None",
+        "metadata": {
+          "tenantSlug": "[parameters('tenantSlug')]",
+          "tenantTier": "[parameters('tier')]",
+          "storageQuotaGB": "[string(variables('t').storageQuotaGB)]"
+        },
+        "immutableStorageWithVersioning": {
+          "enabled": true
+        }
+      }
+    },
+    {
+      "type": "Microsoft.SignalRService/webPubSub/hubs",
+      "apiVersion": "2024-10-01-preview",
+      "name": "[format('{0}/{1}', parameters('webPubSubName'), variables('hubName'))]",
+      "properties": {
+        "anonymousConnectPolicy": "deny"
+      }
+    },
+    {
+      "condition": "[not(empty(parameters('apimName')))]",
+      "type": "Microsoft.ApiManagement/service/products",
+      "apiVersion": "2024-06-01-preview",
+      "name": "[format('{0}/{1}', parameters('apimName'), variables('productName'))]",
+      "properties": {
+        "displayName": "[parameters('tenantDisplayName')]",
+        "description": "[format('Sovera tenant product for {0} ({1} tier)', parameters('tenantDisplayName'), parameters('tier'))]",
+        "subscriptionRequired": true,
+        "approvalRequired": false,
+        "state": "published"
+      }
+    },
+    {
+      "copy": {
+        "name": "tenantProductApis",
+        "count": "[length(variables('apiNames'))]"
+      },
+      "condition": "[not(empty(parameters('apimName')))]",
+      "type": "Microsoft.ApiManagement/service/products/apis",
+      "apiVersion": "2024-06-01-preview",
+      "name": "[format('{0}/{1}/{2}', parameters('apimName'), variables('productName'), variables('apiNames')[copyIndex()])]",
+      "dependsOn": [
+        "[resourceId('Microsoft.ApiManagement/service/products', parameters('apimName'), variables('productName'))]"
+      ]
+    },
+    {
+      "condition": "[not(empty(parameters('apimName')))]",
+      "type": "Microsoft.ApiManagement/service/products/policies",
+      "apiVersion": "2024-06-01-preview",
+      "name": "[format('{0}/{1}/{2}', parameters('apimName'), variables('productName'), 'policy')]",
+      "properties": {
+        "format": "rawxml",
+        "value": "[replace(replace(replace(replace(replace(replace(replace(variables('tenantProductPolicyXml'), '__SLUG__', parameters('tenantSlug')), '__TID__', parameters('tenantId')), '__TIER__', parameters('tier')), '__RL_CALLS__', string(variables('t').rateLimitCalls)), '__RL_PERIOD__', string(variables('t').rateLimitPeriod)), '__QT_CALLS__', string(variables('t').quotaCalls)), '__QT_PERIOD__', string(variables('t').quotaPeriod))]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ApiManagement/service/products', parameters('apimName'), variables('productName'))]"
+      ]
+    },
+    {
+      "condition": "[not(empty(parameters('apimName')))]",
+      "type": "Microsoft.ApiManagement/service/subscriptions",
+      "apiVersion": "2024-06-01-preview",
+      "name": "[format('{0}/{1}', parameters('apimName'), variables('subscriptionName'))]",
+      "properties": {
+        "displayName": "[format('{0} subscription', parameters('tenantDisplayName'))]",
+        "scope": "[resourceId('Microsoft.ApiManagement/service/products', parameters('apimName'), variables('productName'))]",
+        "state": "active",
+        "allowTracing": false
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ApiManagement/service/products', parameters('apimName'), variables('productName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.KeyVault/vaults/secrets",
+      "apiVersion": "2024-11-01",
+      "name": "[format('{0}/{1}', parameters('keyVaultName'), format('tenant-{0}-pg-database', parameters('tenantSlug')))]",
+      "properties": {
+        "value": "[variables('dbName')]",
+        "contentType": "text/plain",
+        "attributes": {
+          "enabled": true
+        }
+      }
+    },
+    {
+      "type": "Microsoft.KeyVault/vaults/secrets",
+      "apiVersion": "2024-11-01",
+      "name": "[format('{0}/{1}', parameters('keyVaultName'), format('tenant-{0}-blob-container', parameters('tenantSlug')))]",
+      "properties": {
+        "value": "[variables('containerName')]",
+        "contentType": "text/plain",
+        "attributes": {
+          "enabled": true
+        }
+      }
+    },
+    {
+      "type": "Microsoft.KeyVault/vaults/secrets",
+      "apiVersion": "2024-11-01",
+      "name": "[format('{0}/{1}', parameters('keyVaultName'), format('tenant-{0}-wps-hub', parameters('tenantSlug')))]",
+      "properties": {
+        "value": "[variables('hubName')]",
+        "contentType": "text/plain",
+        "attributes": {
+          "enabled": true
+        }
+      }
+    },
+    {
+      "type": "Microsoft.KeyVault/vaults/secrets",
+      "apiVersion": "2024-11-01",
+      "name": "[format('{0}/{1}', parameters('keyVaultName'), format('tenant-{0}-tid', parameters('tenantSlug')))]",
+      "properties": {
+        "value": "[parameters('tenantId')]",
+        "contentType": "text/plain",
+        "attributes": {
+          "enabled": true
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "tenantSlug": {
+      "type": "string",
+      "value": "[parameters('tenantSlug')]"
+    },
+    "tenantId": {
+      "type": "string",
+      "value": "[parameters('tenantId')]"
+    },
+    "dbName": {
+      "type": "string",
+      "value": "[variables('dbName')]"
+    },
+    "containerName": {
+      "type": "string",
+      "value": "[variables('containerName')]"
+    },
+    "hubName": {
+      "type": "string",
+      "value": "[variables('hubName')]"
+    },
+    "productName": {
+      "type": "string",
+      "value": "[if(not(empty(parameters('apimName'))), variables('productName'), '')]"
+    },
+    "subscriptionName": {
+      "type": "string",
+      "value": "[if(not(empty(parameters('apimName'))), variables('subscriptionName'), '')]"
+    },
+    "tier": {
+      "type": "string",
+      "value": "[parameters('tier')]"
+    },
+    "rateLimit": {
+      "type": "object",
+      "value": {
+        "calls": "[variables('t').rateLimitCalls]",
+        "periodSeconds": "[variables('t').rateLimitPeriod]"
+      }
+    },
+    "quota": {
+      "type": "object",
+      "value": {
+        "calls": "[variables('t').quotaCalls]",
+        "periodSeconds": "[variables('t').quotaPeriod]"
+      }
+    },
+    "storageQuotaGB": {
+      "type": "int",
+      "value": "[variables('t').storageQuotaGB]"
+    },
+    "maxClients": {
+      "type": "int",
+      "value": "[variables('t').maxClients]"
+    }
+  }
+}

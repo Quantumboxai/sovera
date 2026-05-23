@@ -1,0 +1,8 @@
+node_modules
+.next
+.git
+.env*.local
+Dockerfile
+.dockerignore
+README.md
+fix-tokens.ps1

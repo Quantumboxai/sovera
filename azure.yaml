@@ -1,0 +1,28 @@
+# azd project file — Sovera
+# Run from repo root:
+#   azd auth login
+#   azd env new sovera-prod
+#   azd up                       # provision + build + push + deploy
+# Or step-by-step:
+#   azd provision                # bicep only
+#   azd deploy studio            # build container, push to ACR, update revision
+
+name: sovera
+metadata:
+  template: sovera@0.1.0
+
+infra:
+  provider: bicep
+  path: infra
+  module: main
+
+services:
+  studio:
+    # Build context = repo root so the Dockerfile can copy `packages/client`.
+    project: .
+    language: ts
+    host: containerapp
+    docker:
+      path: apps/studio/Dockerfile
+      context: .
+      remoteBuild: true

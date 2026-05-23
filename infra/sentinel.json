@@ -1,0 +1,322 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.43.8.12551",
+      "templateHash": "9578512640626271348"
+    }
+  },
+  "parameters": {
+    "logAnalyticsWorkspaceName": {
+      "type": "string",
+      "metadata": {
+        "description": "Existing Log Analytics workspace name (created by landing-zone.bicep)."
+      }
+    },
+    "location": {
+      "type": "string",
+      "metadata": {
+        "description": "Location for the workbook resource."
+      }
+    },
+    "tags": {
+      "type": "object",
+      "defaultValue": {}
+    }
+  },
+  "variables": {
+    "workbookContent": {
+      "version": "Notebook/1.0",
+      "items": [
+        {
+          "type": 1,
+          "content": {
+            "json": "# Sovera — security & compliance operations\n\nThis workbook surfaces the signals an HDS/HIPAA auditor will ask for: CMK key access, admin sign-ins, RLS violations, storage shared-key usage, APIM auth failures."
+          }
+        },
+        {
+          "type": 3,
+          "content": {
+            "version": "KqlItem/1.0",
+            "query": "AzureDiagnostics | where ResourceType == \"VAULTS\" | where OperationName startswith \"Key\" | summarize count() by bin(TimeGenerated, 1h), OperationName | render timechart",
+            "size": 0,
+            "title": "Key Vault operations (last 24h)",
+            "timeContext": {
+              "durationMs": 86400000
+            },
+            "queryType": 0,
+            "resourceType": "microsoft.operationalinsights/workspaces"
+          }
+        },
+        {
+          "type": 3,
+          "content": {
+            "version": "KqlItem/1.0",
+            "query": "AzureDiagnostics | where ResourceProvider == \"MICROSOFT.DBFORPOSTGRESQL\" | where Message has_any (\"row-level security\",\"sovera: tenant mismatch\",\"sovera: missing tenant claim\") | summarize count() by bin(TimeGenerated, 1h), Resource | render timechart",
+            "size": 0,
+            "title": "Postgres RLS / tenant-assertion errors (last 24h)",
+            "timeContext": {
+              "durationMs": 86400000
+            },
+            "queryType": 0,
+            "resourceType": "microsoft.operationalinsights/workspaces"
+          }
+        },
+        {
+          "type": 3,
+          "content": {
+            "version": "KqlItem/1.0",
+            "query": "StorageBlobLogs | summarize count() by AuthenticationType, bin(TimeGenerated, 1h) | render columnchart",
+            "size": 0,
+            "title": "Blob auth method mix (must be 100% OAuth)",
+            "timeContext": {
+              "durationMs": 86400000
+            },
+            "queryType": 0,
+            "resourceType": "microsoft.operationalinsights/workspaces"
+          }
+        },
+        {
+          "type": 3,
+          "content": {
+            "version": "KqlItem/1.0",
+            "query": "ApiManagementGatewayLogs | summarize calls = count(), errors = countif(ResponseCode >= 400) by bin(TimeGenerated, 1h), BackendUrl | extend errorRate = todouble(errors)/calls | render timechart",
+            "size": 0,
+            "title": "APIM error rate by backend (last 24h)",
+            "timeContext": {
+              "durationMs": 86400000
+            },
+            "queryType": 0,
+            "resourceType": "microsoft.operationalinsights/workspaces"
+          }
+        },
+        {
+          "type": 3,
+          "content": {
+            "version": "KqlItem/1.0",
+            "query": "SigninLogs | where AppDisplayName in (\"Azure Portal\",\"Microsoft Azure CLI\",\"Microsoft Azure PowerShell\") | summarize count() by ResultType, bin(TimeGenerated, 1h) | render columnchart",
+            "size": 0,
+            "title": "Admin sign-ins by outcome",
+            "timeContext": {
+              "durationMs": 604800000
+            },
+            "queryType": 0,
+            "resourceType": "microsoft.operationalinsights/workspaces"
+          }
+        }
+      ],
+      "styleSettings": {},
+      "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
+    }
+  },
+  "resources": [
+    {
+      "type": "Microsoft.SecurityInsights/onboardingStates",
+      "apiVersion": "2024-09-01",
+      "scope": "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName'))]",
+      "name": "default",
+      "properties": {}
+    },
+    {
+      "type": "Microsoft.SecurityInsights/alertRules",
+      "apiVersion": "2024-09-01",
+      "scope": "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName'))]",
+      "name": "[guid(resourceGroup().id, 'sovera-rule-kv-key-access')]",
+      "kind": "Scheduled",
+      "properties": {
+        "displayName": "Sovera — Key Vault CMK key access from unexpected principal",
+        "description": "Fires when a principal other than the Sovera CMK identity reads a CMK key.",
+        "severity": "High",
+        "enabled": true,
+        "query": "AzureDiagnostics\r\n| where ResourceType == \"VAULTS\"\r\n| where OperationName in (\"KeyGet\", \"KeyWrap\", \"KeyUnwrap\", \"KeySign\", \"KeyDecrypt\")\r\n| where identity_claim_appid_g !in (dynamic([\r\n    // allow-list filled in post-deploy with Sovera CMK identity appId(s)\r\n]))\r\n| project TimeGenerated, ResourceGroup, Resource, OperationName, CallerIPAddress,\r\n          identity_claim_upn_s, identity_claim_appid_g, ResultType\r\n",
+        "queryFrequency": "PT5M",
+        "queryPeriod": "PT1H",
+        "triggerOperator": "GreaterThan",
+        "triggerThreshold": 0,
+        "suppressionEnabled": false,
+        "suppressionDuration": "PT1H",
+        "tactics": [
+          "CredentialAccess",
+          "Impact"
+        ],
+        "techniques": [
+          "T1552"
+        ],
+        "incidentConfiguration": {
+          "createIncident": true,
+          "groupingConfiguration": {
+            "enabled": true,
+            "reopenClosedIncident": false,
+            "lookbackDuration": "PT6H",
+            "matchingMethod": "AllEntities"
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.SecurityInsights/alertRules",
+      "apiVersion": "2024-09-01",
+      "scope": "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName'))]",
+      "name": "[guid(resourceGroup().id, 'sovera-rule-storage-shared-key')]",
+      "kind": "Scheduled",
+      "properties": {
+        "displayName": "Sovera — Storage shared-key usage detected (should be impossible)",
+        "description": "Fires on any successful shared-key authentication against Sovera storage. allowSharedKeyAccess is false; any hit indicates a config drift or misuse.",
+        "severity": "High",
+        "enabled": true,
+        "query": "StorageBlobLogs\r\n| where AuthenticationType == \"AccountKey\"\r\n| where StatusCode < 400\r\n| project TimeGenerated, AccountName, OperationName, CallerIpAddress, StatusCode, Uri\r\n",
+        "queryFrequency": "PT15M",
+        "queryPeriod": "PT1H",
+        "triggerOperator": "GreaterThan",
+        "triggerThreshold": 0,
+        "tactics": [
+          "CredentialAccess",
+          "PrivilegeEscalation"
+        ],
+        "incidentConfiguration": {
+          "createIncident": true,
+          "groupingConfiguration": {
+            "enabled": true,
+            "reopenClosedIncident": false,
+            "lookbackDuration": "PT12H",
+            "matchingMethod": "AllEntities"
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.SecurityInsights/alertRules",
+      "apiVersion": "2024-09-01",
+      "scope": "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName'))]",
+      "name": "[guid(resourceGroup().id, 'sovera-rule-rls-exception-spike')]",
+      "kind": "Scheduled",
+      "properties": {
+        "displayName": "Sovera — Spike in Postgres RLS / tenant assertion errors",
+        "description": "Fires when more than 25 RLS or sovera tenant-mismatch errors occur in 15 minutes.",
+        "severity": "Medium",
+        "enabled": true,
+        "query": "AzureDiagnostics\r\n| where ResourceProvider == \"MICROSOFT.DBFORPOSTGRESQL\"\r\n| where Category in (\"PostgreSQLLogs\", \"PostgreSQLFlexSessions\")\r\n| where Message has_any (\"row-level security\", \"sovera: tenant mismatch\", \"sovera: missing tenant claim\")\r\n| summarize cnt = count() by bin(TimeGenerated, 15m), Resource\r\n| where cnt > 25\r\n",
+        "queryFrequency": "PT15M",
+        "queryPeriod": "PT1H",
+        "triggerOperator": "GreaterThan",
+        "triggerThreshold": 0,
+        "tactics": [
+          "Discovery",
+          "PrivilegeEscalation"
+        ],
+        "incidentConfiguration": {
+          "createIncident": true,
+          "groupingConfiguration": {
+            "enabled": true,
+            "reopenClosedIncident": false,
+            "lookbackDuration": "PT1H",
+            "matchingMethod": "AllEntities"
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.SecurityInsights/alertRules",
+      "apiVersion": "2024-09-01",
+      "scope": "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName'))]",
+      "name": "[guid(resourceGroup().id, 'sovera-rule-admin-new-ip')]",
+      "kind": "Scheduled",
+      "properties": {
+        "displayName": "Sovera — Admin sign-in from new IP",
+        "description": "Fires when a member of sovera-admins signs in from an IP not seen in the prior 30 days.",
+        "severity": "Medium",
+        "enabled": true,
+        "query": "let lookback = 30d;\r\nlet knownIps = SigninLogs\r\n    | where TimeGenerated between (ago(lookback) .. ago(1h))\r\n    | where AppDisplayName in (\"Azure Portal\", \"Microsoft Azure CLI\", \"Microsoft Azure PowerShell\")\r\n    | summarize by IPAddress, UserPrincipalName;\r\nSigninLogs\r\n| where TimeGenerated > ago(1h)\r\n| where AppDisplayName in (\"Azure Portal\", \"Microsoft Azure CLI\", \"Microsoft Azure PowerShell\")\r\n| where ResultType == \"0\"\r\n| where UserPrincipalName has \"@\"\r\n| join kind=leftanti knownIps on IPAddress, UserPrincipalName\r\n| project TimeGenerated, UserPrincipalName, IPAddress, Location, ClientAppUsed, AppDisplayName\r\n",
+        "queryFrequency": "PT15M",
+        "queryPeriod": "PT30D",
+        "triggerOperator": "GreaterThan",
+        "triggerThreshold": 0,
+        "tactics": [
+          "InitialAccess"
+        ],
+        "techniques": [
+          "T1078"
+        ],
+        "incidentConfiguration": {
+          "createIncident": true,
+          "groupingConfiguration": {
+            "enabled": true,
+            "reopenClosedIncident": false,
+            "lookbackDuration": "PT12H",
+            "matchingMethod": "AllEntities"
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.SecurityInsights/alertRules",
+      "apiVersion": "2024-09-01",
+      "scope": "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName'))]",
+      "name": "[guid(resourceGroup().id, 'sovera-rule-apim-auth-spike')]",
+      "kind": "Scheduled",
+      "properties": {
+        "displayName": "Sovera — APIM auth failure spike on a single subscription",
+        "description": "More than 50 401/403 in 5 minutes from one APIM subscription = abuse or compromised client.",
+        "severity": "Medium",
+        "enabled": true,
+        "query": "ApiManagementGatewayLogs\r\n| where ResponseCode in (401, 403)\r\n| summarize cnt = count() by bin(TimeGenerated, 5m), ApimSubscriptionId, BackendUrl\r\n| where cnt > 50\r\n",
+        "queryFrequency": "PT5M",
+        "queryPeriod": "PT1H",
+        "triggerOperator": "GreaterThan",
+        "triggerThreshold": 0,
+        "tactics": [
+          "CredentialAccess"
+        ],
+        "techniques": [
+          "T1110"
+        ],
+        "incidentConfiguration": {
+          "createIncident": true,
+          "groupingConfiguration": {
+            "enabled": true,
+            "reopenClosedIncident": false,
+            "lookbackDuration": "PT1H",
+            "matchingMethod": "AllEntities"
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Insights/workbooks",
+      "apiVersion": "2023-06-01",
+      "name": "[guid(resourceGroup().id, 'sovera-sec-ops-workbook')]",
+      "location": "[parameters('location')]",
+      "tags": "[parameters('tags')]",
+      "kind": "shared",
+      "properties": {
+        "displayName": "Sovera — security & compliance operations",
+        "serializedData": "[string(variables('workbookContent'))]",
+        "category": "sentinel",
+        "sourceId": "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName'))]",
+        "version": "1.0"
+      }
+    }
+  ],
+  "outputs": {
+    "sentinelEnabled": {
+      "type": "bool",
+      "value": true
+    },
+    "workbookId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.Insights/workbooks', guid(resourceGroup().id, 'sovera-sec-ops-workbook'))]"
+    },
+    "analyticsRuleIds": {
+      "type": "array",
+      "value": [
+        "[extensionResourceId(resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName')), 'Microsoft.SecurityInsights/alertRules', guid(resourceGroup().id, 'sovera-rule-kv-key-access'))]",
+        "[extensionResourceId(resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName')), 'Microsoft.SecurityInsights/alertRules', guid(resourceGroup().id, 'sovera-rule-storage-shared-key'))]",
+        "[extensionResourceId(resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName')), 'Microsoft.SecurityInsights/alertRules', guid(resourceGroup().id, 'sovera-rule-rls-exception-spike'))]",
+        "[extensionResourceId(resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName')), 'Microsoft.SecurityInsights/alertRules', guid(resourceGroup().id, 'sovera-rule-admin-new-ip'))]",
+        "[extensionResourceId(resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsWorkspaceName')), 'Microsoft.SecurityInsights/alertRules', guid(resourceGroup().id, 'sovera-rule-apim-auth-spike'))]"
+      ]
+    }
+  }
+}

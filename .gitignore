@@ -1,0 +1,30 @@
+.env
+.env.*
+!.env.example
+*.bicepparam.local
+node_modules/
+dist/
+.next/
+.azure/
+.vscode/
+*.log
+
+# Secrets / local state (NEVER commit)
+.func-key
+.auth-cfg.json
+.studio-app-id
+.studio-app-secret
+.deploy-name
+.pg-admin-pw
+.pg-uai.json
+.kudu-state.json
+.whatif.json
+
+# Build artifacts
+fn.zip
+*.tgz
+acr-*.log
+build-*.log
+app.log
+response.txt
+stud.txt
