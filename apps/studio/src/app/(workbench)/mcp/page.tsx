@@ -179,7 +179,7 @@ export default function McpPage() {
         </ul>
         <div className="mt-3 flex items-center gap-3 text-[11px]">
           <a href="https://modelcontextprotocol.io" target="_blank" rel="noreferrer" className="text-(--color-cyan) hover:underline inline-flex items-center gap-1">MCP spec <ExternalLink className="h-3 w-3" /></a>
-          <a href="https://github.com/DavidMalickDieng-wq/sovera/tree/main/packages/mcp-server" target="_blank" rel="noreferrer" className="text-(--color-cyan) hover:underline inline-flex items-center gap-1">source on github <ExternalLink className="h-3 w-3" /></a>
+          <a href="https://github.com/Quantumboxai/sovera/tree/main/packages/mcp-server" target="_blank" rel="noreferrer" className="text-(--color-cyan) hover:underline inline-flex items-center gap-1">source on github <ExternalLink className="h-3 w-3" /></a>
         </div>
       </Card>
     </div>

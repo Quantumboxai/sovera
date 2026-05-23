@@ -67,4 +67,4 @@ All MCP-aware editors accept the same JSON. See the **MCP** page inside Sovera S
 
 ## Source
 
-[github.com/DavidMalickDieng-wq/sovera/tree/main/packages/mcp-server](https://github.com/DavidMalickDieng-wq/sovera/tree/main/packages/mcp-server) · MIT licensed.
+[github.com/Quantumboxai/sovera/tree/main/packages/mcp-server](https://github.com/Quantumboxai/sovera/tree/main/packages/mcp-server) · MIT licensed.

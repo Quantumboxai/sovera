@@ -35,7 +35,7 @@ curl -sS ${FUNCTIONS_URL}/api/tables \\
   -H "authorization: Bearer $SOVERA_KEY"`,
   },
   ts: {
-    install: '# from a GitHub release tarball (npm publish coming):\nnpm install https://github.com/DavidMalickDieng-wq/sovera/releases/download/client-v0.1.0/sovera-client-0.1.0.tgz',
+    install: '# from a GitHub release tarball (npm publish coming):\nnpm install https://github.com/Quantumboxai/sovera/releases/download/client-v0.1.0/sovera-client-0.1.0.tgz',
     code: `import { createClient } from '@sovera/client';
 
 const sovera = createClient({
