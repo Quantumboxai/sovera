@@ -3,6 +3,15 @@
 Self-hosted, France-resident BaaS built entirely on Azure managed services.
 All resources are pinned to **France Central** in resource group **`sovera`**.
 
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FQuantumboxai%2Fsovera%2Fmain%2Finfra%2Fmain.json)
+[![CodeQL](https://github.com/Quantumboxai/sovera/actions/workflows/codeql.yml/badge.svg)](https://github.com/Quantumboxai/sovera/actions/workflows/codeql.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![MCP](https://img.shields.io/badge/MCP-native-blue.svg)](https://modelcontextprotocol.io)
+[![Website](https://img.shields.io/badge/website-sovera.eu-success)](https://sovera.eu)
+
+> **AI-native BaaS.** Sovera ships with a native [Model Context Protocol](https://modelcontextprotocol.io) server — your data layer plugs directly into Claude, Cursor, GitHub Copilot, and any MCP-compatible agent. Build agentic apps on a backend that's already HDS/HIPAA-ready.
+
+
 ## Why this stack wins enterprise compliance deals
 
 - Every layer (Postgres Flex, Blob, Key Vault HSM, APIM, Container Apps, Functions, Web PubSub, Event Hubs) is already certified by Microsoft for **HDS, HIPAA, ISO 27001, SOC 2, PCI-DSS, ENS, C5** in France Central.

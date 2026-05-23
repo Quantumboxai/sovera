@@ -62,7 +62,11 @@ export function createClient(opts: SoveraOptions): SoveraClient {
     }
   };
 
-  const apim = opts.apimUrl.replace(/\/+$/, '');
+  // Avoid regex (CodeQL js/polynomial-redos): strip trailing slashes with a bounded loop.
+  let apim = opts.apimUrl;
+  while (apim.length > 0 && apim.charCodeAt(apim.length - 1) === 47 /* '/' */) {
+    apim = apim.slice(0, -1);
+  }
 
   const rawFetch = async (path: string, init: RequestInit = {}) => {
     const token = await getToken();
