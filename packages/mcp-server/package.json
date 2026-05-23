@@ -20,7 +20,7 @@
   "bugs": { "url": "https://github.com/Quantumboxai/gardia/issues" },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.4",
-    "zod": "^3.23.8"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
